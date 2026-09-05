@@ -1,0 +1,32 @@
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100px;
+  height: 100px;
+  overflow: hidden;
+  background: transparent;
+  /* ⚠️ 여기에 있던 -webkit-app-region: drag; 관련 코드를 싹 다 지우세요! */
+}
+
+/* 펫 컨테이너 div */
+.pet {
+  width: 100px;
+  height: 100px;
+  cursor: grab;
+}
+
+.pet:active {
+  cursor: grabbing;
+}
+
+img {
+  display: block;
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+}
