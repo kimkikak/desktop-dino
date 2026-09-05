@@ -87,6 +87,27 @@ function createWindow() {
       height: PET_SIZE,
     });
   });
+
+  ipcMain.on("pet:auto-move", (_, deltaX) => {
+    if (!petWindow) return;
+
+    const { x, y } = petWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x, y });
+    const { x: minX, width } = display.workArea;
+    const maxX = minX + width - PET_SIZE;
+    const nextX = Math.min(Math.max(x + deltaX, minX), maxX);
+
+    petWindow.setBounds({
+      x: nextX,
+      y,
+      width: PET_SIZE,
+      height: PET_SIZE,
+    });
+
+    if (nextX !== x && (nextX === minX || nextX === maxX)) {
+      petWindow.webContents.send("pet:auto-boundary");
+    }
+  });
 }
 
 app.whenReady().then(() => {
