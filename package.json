@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "package": "electron-builder",
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "electron ."
@@ -32,5 +33,25 @@
     "typescript-eslint": "^8.67.0",
     "vite": "^8.2.2",
     "wait-on": "^9.1.0"
+  },
+  "build": {
+    "appId": "com.yourname.deskpet",
+    "productName": "DeskPet",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png"
+    }
   }
 }
