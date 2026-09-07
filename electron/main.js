@@ -5,6 +5,7 @@ const PET_SIZE = 100;
 const EMOTION_OVERLAY_SIZE = 400;
 let petWindow;
 let emotionOverlayWindow;
+let emotionMenuCloseReason;
 
 // 💡 드래그가 시작될 때의 창 위치를 기억할 변수를 선언합니다.
 let startWindowX = 0;
@@ -145,21 +146,35 @@ function createWindow() {
 
     emotionOverlayWindow.loadURL("http://localhost:5173/?window=emotion-menu");
     emotionOverlayWindow.on("closed", () => {
+      console.log("[EMOTION_MENU_CLOSED] 오버레이 메뉴가 닫혔습니다");
+      const closeReason = emotionMenuCloseReason;
+      emotionMenuCloseReason = undefined;
       emotionOverlayWindow = undefined;
       if (petWindow && !petWindow.isDestroyed()) {
-        petWindow.webContents.send("pet:emotion-menu-closed");
+        console.log("[EMOTION_MENU_CLOSED] 펫 창에 닫힘 신호를 전달합니다");
+        petWindow.webContents.send("pet:emotion-menu-closed", closeReason);
       }
     });
   });
 
-  const closeEmotionMenu = () => {
+  const closeEmotionMenu = (reason) => {
     if (emotionOverlayWindow && !emotionOverlayWindow.isDestroyed()) {
+      console.log("[CLOSE_EMOTION_SIGNAL] 메뉴 닫기 신호 수신됨");
+      emotionMenuCloseReason = reason;
       emotionOverlayWindow.close();
+      return;
     }
+
+    console.log("[CLOSE_EMOTION_SIGNAL] 닫을 오버레이가 없습니다");
   };
 
-  ipcMain.on("pet:close-emotion-menu", closeEmotionMenu);
+  ipcMain.on("pet:close-emotion-menu", (_, reason) => closeEmotionMenu(reason));
   ipcMain.on("pet:select-emotion", (_, emotion) => {
+    console.log(`[emotion] 선택됨: ${emotion}`);
+    if (emotion === "💤") {
+      console.log("[SLEEP_SIGNAL] sleep 기능 신호 수신됨");
+    }
+
     if (petWindow && !petWindow.isDestroyed()) {
       petWindow.webContents.send("pet:emotion-selected", emotion);
     }

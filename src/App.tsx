@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 
-type AutoState = "idle" | "walk";
+type AutoState = "idle" | "walk" | "sleep" | "eating" | "work";
 const isEmotionMenu = new URLSearchParams(window.location.search).get("window") === "emotion-menu";
-const emotions = ["😊", "😢", "😡", "❤️", "💤"];
+const emotions = [
+  { value: "feed", label: "🍖", ariaLabel: "밥주기" },
+  { value: "work", label: "💻", ariaLabel: "작업" },
+  { value: "angry", label: "😡", ariaLabel: "감정 😡" },
+  { value: "love", label: "❤️", ariaLabel: "감정 ❤️" },
+];
 
 declare global {
   interface Window {
@@ -15,9 +20,9 @@ declare global {
       onAutoBoundary: (callback: () => void) => () => void;
       openEmotionMenu: () => void;
       selectEmotion: (emotion: string) => void;
-      closeEmotionMenu: () => void;
+      closeEmotionMenu: (reason?: "cancel") => void;
       onEmotionSelected: (callback: (emotion: string) => void) => () => void;
-      onEmotionMenuClosed: (callback: () => void) => () => void;
+      onEmotionMenuClosed: (callback: (reason?: "cancel") => void) => () => void;
     };
   }
 }
@@ -42,17 +47,27 @@ function EmotionMenu() {
 
           return (
             <button
-              key={emotion}
+              key={emotion.value}
               className="emotion-option"
               style={{ left: x, top: y }}
-              onClick={() => selectEmotion(emotion)}
-              aria-label={`감정 ${emotion}`}
+              onClick={() => selectEmotion(emotion.value)}
+              aria-label={emotion.ariaLabel}
             >
-              {emotion}
+              {emotion.label}
             </button>
           );
         })}
-        <div className="emotion-center" aria-hidden="true">♡</div>
+        <button
+          type="button"
+          className="emotion-center"
+          aria-label="표현 안 함"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.electronAPI.closeEmotionMenu("cancel");
+          }}
+        >
+          ×
+        </button>
       </div>
     </div>
   );
@@ -61,15 +76,34 @@ function EmotionMenu() {
 function Pet() {
   const [isHolding, setIsHolding] = useState(false);
   const [isEmotionMenuOpen, setIsEmotionMenuOpen] = useState(false);
+  const [isWakingUp, setIsWakingUp] = useState(false);
   const [autoState, setAutoState] = useState<AutoState>("idle");
   const [direction, setDirection] = useState<1 | -1>(1);
   const [walkFrame, setWalkFrame] = useState(0);
+  const [sleepFrame, setSleepFrame] = useState(0);
+  const [eatingFrame, setEatingFrame] = useState(0);
+  const [workFrame, setWorkFrame] = useState(0);
   const positionRef = useRef({ x: -1, y: -1 });
   const isHoldingRef = useRef(false);
+  const wasSleepingBeforeDragRef = useRef(false);
+  const wasWorkingBeforeDragRef = useRef(false);
+  const menuOpenedFromSleepRef = useRef(false);
+  const menuOpenedFromWorkRef = useRef(false);
+  const emotionSelectedRef = useRef(false);
+  const sleepClickTimesRef = useRef<number[]>([]);
 
   const onPetMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (autoState === "eating") {
+      e.preventDefault();
+      return;
+    }
+
     if (e.button === 2) {
       e.preventDefault();
+      if (autoState === "sleep") return;
+
+      menuOpenedFromSleepRef.current = false;
+      menuOpenedFromWorkRef.current = autoState === "work";
       setIsEmotionMenuOpen(true);
       setAutoState("idle");
       window.electronAPI.openEmotionMenu();
@@ -79,6 +113,19 @@ function Pet() {
     if (e.button !== 0) return;
 
     e.preventDefault();
+    if (autoState === "sleep") {
+      const now = Date.now();
+      sleepClickTimesRef.current = [...sleepClickTimesRef.current.filter((time) => now - time <= 1000), now];
+
+      if (sleepClickTimesRef.current.length >= 3) {
+        sleepClickTimesRef.current = [];
+        setIsWakingUp(true);
+      }
+      return;
+    }
+
+    wasSleepingBeforeDragRef.current = false;
+    wasWorkingBeforeDragRef.current = autoState === "work";
     // 💡 시작 좌표 저장
     positionRef.current = { x: e.screenX, y: e.screenY };
     isHoldingRef.current = true;
@@ -102,7 +149,15 @@ function Pet() {
     const onUp = () => {
       isHoldingRef.current = false;
       setIsHolding(false);
-      setAutoState("idle");
+      setAutoState(
+        wasSleepingBeforeDragRef.current
+          ? "sleep"
+          : wasWorkingBeforeDragRef.current
+            ? "work"
+            : "idle",
+      );
+      wasSleepingBeforeDragRef.current = false;
+      wasWorkingBeforeDragRef.current = false;
       positionRef.current = { x: -1, y: -1 }; // 좌표 초기화
     };
 
@@ -125,14 +180,31 @@ function Pet() {
   }, [isEmotionMenuOpen]);
 
   useEffect(() => {
-    const removeSelectedListener = window.electronAPI.onEmotionSelected(() => {
+    const removeSelectedListener = window.electronAPI.onEmotionSelected((emotion) => {
+      emotionSelectedRef.current = true;
       setIsEmotionMenuOpen(false);
       setIsHolding(false);
-      setAutoState("idle");
+      if (emotion === "feed") {
+        setEatingFrame(0);
+        setAutoState("eating");
+      } else if (emotion === "work") {
+        setAutoState("work");
+      } else {
+        setAutoState("idle");
+      }
+      menuOpenedFromSleepRef.current = false;
+      menuOpenedFromWorkRef.current = false;
     });
     const removeClosedListener = window.electronAPI.onEmotionMenuClosed(() => {
+      if (emotionSelectedRef.current) {
+        emotionSelectedRef.current = false;
+        return;
+      }
+
       setIsEmotionMenuOpen(false);
       setAutoState("idle");
+      menuOpenedFromSleepRef.current = false;
+      menuOpenedFromWorkRef.current = false;
     });
 
     return () => {
@@ -142,7 +214,7 @@ function Pet() {
   }, []);
 
   useEffect(() => {
-    if (isHolding || isHoldingRef.current || isEmotionMenuOpen) return;
+    if (isHolding || isHoldingRef.current || isEmotionMenuOpen || autoState === "sleep" || autoState === "eating" || autoState === "work") return;
 
     const duration = autoState === "idle"
       ? 1000 + Math.random() * 2000
@@ -152,7 +224,7 @@ function Pet() {
         setAutoState((currentState) => {
           if (currentState === "idle") {
             setDirection(Math.random() < 0.5 ? -1 : 1);
-            return "walk";
+            return Math.random() < 0.15 ? "sleep" : "walk";
           }
           return "idle";
         });
@@ -194,9 +266,82 @@ function Pet() {
     return () => window.clearInterval(frameTimer);
   }, [autoState, isHolding, isEmotionMenuOpen]);
 
+  useEffect(() => {
+    if (autoState !== "sleep" || isHolding || isEmotionMenuOpen || isWakingUp) {
+      return;
+    }
+
+    const frameTimer = window.setInterval(() => {
+      setSleepFrame((currentFrame) => (currentFrame + 1) % 3);
+    }, 350);
+
+    return () => window.clearInterval(frameTimer);
+  }, [autoState, isHolding, isEmotionMenuOpen, isWakingUp]);
+
+  useEffect(() => {
+    if (autoState !== "eating" || isHolding || isEmotionMenuOpen) return;
+
+    let nextFrame = 0;
+    const frameTimer = window.setInterval(() => {
+      nextFrame += 1;
+
+      if (nextFrame >= 3) {
+        window.clearInterval(frameTimer);
+        setAutoState("idle");
+        return;
+      }
+
+      setEatingFrame(nextFrame);
+    }, 450);
+
+    return () => window.clearInterval(frameTimer);
+  }, [autoState, isHolding, isEmotionMenuOpen]);
+
+  useEffect(() => {
+    if (autoState !== "work" || isHolding || isEmotionMenuOpen) return;
+
+    const frameTimer = window.setInterval(() => {
+      setWorkFrame((currentFrame) => (currentFrame + 1) % 2);
+    }, 350);
+
+    return () => window.clearInterval(frameTimer);
+  }, [autoState, isHolding, isEmotionMenuOpen]);
+
+  useEffect(() => {
+    if (autoState !== "sleep") {
+      sleepClickTimesRef.current = [];
+      return;
+    }
+
+    const wakeupTimer = window.setTimeout(() => {
+      setIsWakingUp(true);
+    }, 5000 + Math.random() * 25000);
+
+    return () => window.clearTimeout(wakeupTimer);
+  }, [autoState]);
+
+  useEffect(() => {
+    if (!isWakingUp) return;
+
+    const wakeupTimer = window.setTimeout(() => {
+      setIsWakingUp(false);
+      setAutoState("idle");
+    }, 700);
+
+    return () => window.clearTimeout(wakeupTimer);
+  }, [isWakingUp]);
+
   const sprite = isHolding
     ? "/pet/hold.png"
-    : autoState === "walk"
+    : isWakingUp
+      ? "/pet/wakeup.png"
+    : autoState === "sleep"
+      ? `/pet/sleep${sleepFrame + 1}.png`
+      : autoState === "eating"
+      ? `/pet/eat${eatingFrame + 1}.png`
+      : autoState === "work"
+      ? `/pet/neptop${workFrame + 1}.png`
+      : autoState === "walk"
       ? `/pet/run${walkFrame + 1}.png`
       : "/pet/idle.png";
 

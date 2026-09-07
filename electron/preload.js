@@ -13,14 +13,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   startDrag: () => ipcRenderer.send("pet:start-drag"), // 💡 이 줄을 꼭 추가해 주세요!
   openEmotionMenu: () => ipcRenderer.send("pet:open-emotion-menu"),
   selectEmotion: (emotion) => ipcRenderer.send("pet:select-emotion", emotion),
-  closeEmotionMenu: () => ipcRenderer.send("pet:close-emotion-menu"),
+  closeEmotionMenu: (reason) => ipcRenderer.send("pet:close-emotion-menu", reason),
   onEmotionSelected: (callback) => {
     const listener = (_, emotion) => callback(emotion);
     ipcRenderer.on("pet:emotion-selected", listener);
     return () => ipcRenderer.removeListener("pet:emotion-selected", listener);
   },
   onEmotionMenuClosed: (callback) => {
-    const listener = () => callback();
+    const listener = (_, reason) => callback(reason);
     ipcRenderer.on("pet:emotion-menu-closed", listener);
     return () => ipcRenderer.removeListener("pet:emotion-menu-closed", listener);
   },
