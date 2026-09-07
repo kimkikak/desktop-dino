@@ -37,7 +37,11 @@ function createWindow() {
     },
   });
 
-  petWindow.loadURL("http://localhost:5173");
+  if (app.isPackaged) {
+    petWindow.loadFile(fileURLToPath(new URL("../dist/index.html", import.meta.url)));
+  } else {
+    petWindow.loadURL("http://localhost:5173");
+  }
 
   // DevTools는 분리된 창으로 띄운다 (투명 petWindow 안에 docked로 열면 레이아웃 꼬임)
   //petWindow.webContents.openDevTools({ mode: "detach" });
@@ -144,7 +148,10 @@ function createWindow() {
       },
     });
 
-    emotionOverlayWindow.loadURL("http://localhost:5173/?window=emotion-menu");
+    const emotionMenuUrl = app.isPackaged
+      ? `file://${fileURLToPath(new URL("../dist/index.html", import.meta.url))}?window=emotion-menu`
+      : "http://localhost:5173/?window=emotion-menu";
+    emotionOverlayWindow.loadURL(emotionMenuUrl);
     emotionOverlayWindow.on("closed", () => {
       console.log("[EMOTION_MENU_CLOSED] 오버레이 메뉴가 닫혔습니다");
       const closeReason = emotionMenuCloseReason;

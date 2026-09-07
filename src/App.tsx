@@ -332,18 +332,18 @@ function Pet() {
   }, [isWakingUp]);
 
   const sprite = isHolding
-    ? "/pet/hold.png"
+    ? `${import.meta.env.BASE_URL}pet/hold.png`
     : isWakingUp
-      ? "/pet/wakeup.png"
+      ? `${import.meta.env.BASE_URL}pet/wakeup.png`
     : autoState === "sleep"
-      ? `/pet/sleep${sleepFrame + 1}.png`
+      ? `${import.meta.env.BASE_URL}pet/sleep${sleepFrame + 1}.png`
       : autoState === "eating"
-      ? `/pet/eat${eatingFrame + 1}.png`
+      ? `${import.meta.env.BASE_URL}pet/eat${eatingFrame + 1}.png`
       : autoState === "work"
-      ? `/pet/neptop${workFrame + 1}.png`
+      ? `${import.meta.env.BASE_URL}pet/neptop${workFrame + 1}.png`
       : autoState === "walk"
-      ? `/pet/run${walkFrame + 1}.png`
-      : "/pet/idle.png";
+      ? `${import.meta.env.BASE_URL}pet/run${walkFrame + 1}.png`
+      : `${import.meta.env.BASE_URL}pet/idle.png`;
 
   return (
     // 💡 .pet div 자체에 grab 커서가 먹히도록 설정 (CSS에서 세팅)
