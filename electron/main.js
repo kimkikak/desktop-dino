@@ -2,7 +2,9 @@ import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { fileURLToPath } from "node:url";
 
 const PET_SIZE = 100;
+const EMOTION_OVERLAY_SIZE = 400;
 let petWindow;
+let emotionOverlayWindow;
 
 // 💡 드래그가 시작될 때의 창 위치를 기억할 변수를 선언합니다.
 let startWindowX = 0;
@@ -52,7 +54,7 @@ function createWindow() {
 
   // 💡 1. 드래그 시작 시점의 창 위치를 기록하는 이벤트를 새로 추가합니다.
   ipcMain.on("pet:start-drag", () => {
-    if (!petWindow) return;
+    if (!petWindow || emotionOverlayWindow) return;
     const [x, y] = petWindow.getPosition();
     startWindowX = x;
     startWindowY = y;
@@ -61,7 +63,7 @@ function createWindow() {
 
   // 💡 2. 기존의 pet:move 이벤트를 누적 이동 거리(Delta) 방식으로 수정합니다.
   ipcMain.on("pet:move", (_, bx, by, ax, ay) => {
-    if (!petWindow) return;
+    if (!petWindow || emotionOverlayWindow) return;
 
     // bx, by: 처음 마우스를 클릭한 절대 좌표 (고정값)
     // ax, ay: 현재 마우스가 움직이고 있는 절대 좌표 (가변값)
@@ -89,7 +91,7 @@ function createWindow() {
   });
 
   ipcMain.on("pet:auto-move", (_, deltaX) => {
-    if (!petWindow) return;
+    if (!petWindow || emotionOverlayWindow) return;
 
     const { x, y } = petWindow.getBounds();
     const display = screen.getDisplayNearestPoint({ x, y });
@@ -107,6 +109,61 @@ function createWindow() {
     if (nextX !== x && (nextX === minX || nextX === maxX)) {
       petWindow.webContents.send("pet:auto-boundary");
     }
+  });
+
+  ipcMain.on("pet:open-emotion-menu", () => {
+    if (!petWindow || emotionOverlayWindow) return;
+
+    const { x, y } = petWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: x + PET_SIZE / 2, y: y + PET_SIZE / 2 });
+    const { x: minX, y: minY, width, height } = display.workArea;
+    const overlayX = Math.min(
+      Math.max(x + PET_SIZE / 2 - EMOTION_OVERLAY_SIZE / 2, minX),
+      minX + width - EMOTION_OVERLAY_SIZE,
+    );
+    const overlayY = Math.min(
+      Math.max(y + PET_SIZE / 2 - EMOTION_OVERLAY_SIZE / 2, minY),
+      minY + height - EMOTION_OVERLAY_SIZE,
+    );
+    const preloadPath = fileURLToPath(new URL("preload.js", import.meta.url));
+
+    emotionOverlayWindow = new BrowserWindow({
+      width: EMOTION_OVERLAY_SIZE,
+      height: EMOTION_OVERLAY_SIZE,
+      x: overlayX,
+      y: overlayY,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      resizable: false,
+      hasShadow: false,
+      webPreferences: {
+        preload: preloadPath,
+        contextIsolation: true,
+      },
+    });
+
+    emotionOverlayWindow.loadURL("http://localhost:5173/?window=emotion-menu");
+    emotionOverlayWindow.on("closed", () => {
+      emotionOverlayWindow = undefined;
+      if (petWindow && !petWindow.isDestroyed()) {
+        petWindow.webContents.send("pet:emotion-menu-closed");
+      }
+    });
+  });
+
+  const closeEmotionMenu = () => {
+    if (emotionOverlayWindow && !emotionOverlayWindow.isDestroyed()) {
+      emotionOverlayWindow.close();
+    }
+  };
+
+  ipcMain.on("pet:close-emotion-menu", closeEmotionMenu);
+  ipcMain.on("pet:select-emotion", (_, emotion) => {
+    if (petWindow && !petWindow.isDestroyed()) {
+      petWindow.webContents.send("pet:emotion-selected", emotion);
+    }
+    closeEmotionMenu();
   });
 }
 

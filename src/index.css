@@ -7,7 +7,13 @@ body,
   height: 100px;
   overflow: hidden;
   background: transparent;
-  /* ⚠️ 여기에 있던 -webkit-app-region: drag; 관련 코드를 싹 다 지우세요! */
+}
+
+html:has(.emotion-overlay),
+body:has(.emotion-overlay),
+#root:has(.emotion-overlay) {
+  width: 400px;
+  height: 400px;
 }
 
 /* 펫 컨테이너 div */
@@ -15,6 +21,52 @@ body,
   width: 100px;
   height: 100px;
   cursor: grab;
+}
+
+.emotion-overlay {
+  width: 400px;
+  height: 400px;
+  position: relative;
+}
+
+.emotion-menu {
+  width: 400px;
+  height: 400px;
+  position: relative;
+}
+
+.emotion-option {
+  position: absolute;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: rgba(30, 30, 40, 0.92);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  font-size: 29px;
+  line-height: 1;
+}
+
+.emotion-option:hover {
+  transform: scale(1.12);
+}
+
+.emotion-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  color: #e85d75;
+  font-size: 42px;
+  pointer-events: none;
 }
 
 .pet:active {
