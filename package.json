@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "package": "electron-builder",
+    "package": "npm run build && electron-builder --publish never",
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "electron ."
