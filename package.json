@@ -48,7 +48,7 @@
     "publish": {
       "provider": "github",
       "owner": "kimkikak",
-      "repo": "trexpet"
+      "repo": "desktop-dino"
     },
     "mac": {
       "target": "dmg",
@@ -61,7 +61,7 @@
     "linux": {
       "target": [
         "AppImage",
-        "pacman"      
+        "pacman"
       ],
       "icon": "build/icon.png"
     }
