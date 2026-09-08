@@ -45,6 +45,11 @@
       "dist/**/*",
       "electron/**/*"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "kimkikak",
+      "repo": "trexpet"
+    },
     "mac": {
       "target": "dmg",
       "icon": "build/icon.icns"
@@ -56,7 +61,7 @@
     "linux": {
       "target": [
         "AppImage",
-        "pacman"
+        "pacman"      
       ],
       "icon": "build/icon.png"
     }
