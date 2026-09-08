@@ -50,7 +50,10 @@
       "icon": "build/icon.ico"
     },
     "linux": {
-      "target": "AppImage",
+      "target": [
+        "AppImage",
+        "pacman"
+      ],
       "icon": "build/icon.png"
     }
   }

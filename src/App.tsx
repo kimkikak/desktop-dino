@@ -6,7 +6,7 @@ const emotions = [
   { value: "feed", label: "🍖", ariaLabel: "밥주기" },
   { value: "work", label: "💻", ariaLabel: "작업" },
   { value: "angry", label: "😡", ariaLabel: "감정 😡" },
-  { value: "love", label: "❤️", ariaLabel: "감정 ❤️" },
+  { value: "love", label: "❤️", ariaLabel: "❤️" },
 ];
 
 declare global {
