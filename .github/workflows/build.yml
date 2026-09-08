@@ -20,9 +20,9 @@ jobs:
 
       - run: npm install
 
-      - name: Install Linux packaging dependencies
+      - name: Install Linux build dependencies
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg
+        run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg libarchive-tools
 
       - run: npm run build
 
