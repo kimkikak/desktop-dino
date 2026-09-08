@@ -39,7 +39,7 @@
     "wait-on": "^9.1.0"
   },
   "build": {
-    "appId": "com.yourname.deskpet",
+    "appId": "com.kimkikak.deskpet",
     "productName": "DeskPet",
     "files": [
       "dist/**/*",
