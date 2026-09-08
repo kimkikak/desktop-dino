@@ -7,6 +7,10 @@
     "name": "kimkikak",
     "email": "rlarlhak00719@gmail.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kimkikak/desktop-dino.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +19,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "electron ."
-  },  
+  },
   "dependencies": {
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
@@ -45,14 +49,6 @@
       "dist/**/*",
       "electron/**/*"
     ],
-    "publish": [
-      {
-      "provider": "github",
-      "owner": "kimkikak",
-      "repo": "desktop-dino",
-      "draft": false
-    }
-  ],
     "mac": {
       "target": "dmg",
       "icon": "build/icon.icns"
