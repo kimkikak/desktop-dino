@@ -45,12 +45,14 @@
       "dist/**/*",
       "electron/**/*"
     ],
-    "publish": {
+    "publish": [
+      {
       "provider": "github",
       "owner": "kimkikak",
       "repo": "desktop-dino",
       "draft": false
-    },
+    }
+  ],
     "mac": {
       "target": "dmg",
       "icon": "build/icon.icns"
