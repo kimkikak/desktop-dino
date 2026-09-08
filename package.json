@@ -48,7 +48,8 @@
     "publish": {
       "provider": "github",
       "owner": "kimkikak",
-      "repo": "desktop-dino"
+      "repo": "desktop-dino",
+      "draft": false
     },
     "mac": {
       "target": "dmg",
