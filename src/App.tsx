@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-type AutoState = "idle" | "walk" | "sleep" | "eating" | "work";
+type AutoState = "idle" | "walk" | "fastrun" | "sleep" | "eating" | "work";
 const isEmotionMenu = new URLSearchParams(window.location.search).get("window") === "emotion-menu";
 const emotions = [
   { value: "feed", label: "🍖", ariaLabel: "밥주기" },
@@ -80,10 +80,12 @@ function Pet() {
   const [autoState, setAutoState] = useState<AutoState>("idle");
   const [direction, setDirection] = useState<1 | -1>(1);
   const [walkFrame, setWalkFrame] = useState(0);
+  const [fastRunFrame, setFastRunFrame] = useState(0);
   const [sleepFrame, setSleepFrame] = useState(0);
   const [eatingFrame, setEatingFrame] = useState(0);
   const [workFrame, setWorkFrame] = useState(0);
   const positionRef = useRef({ x: -1, y: -1 });
+  const autoStateRef = useRef<AutoState>("idle");
   const isHoldingRef = useRef(false);
   const wasSleepingBeforeDragRef = useRef(false);
   const wasWorkingBeforeDragRef = useRef(false);
@@ -92,7 +94,16 @@ function Pet() {
   const emotionSelectedRef = useRef(false);
   const sleepClickTimesRef = useRef<number[]>([]);
 
+  useEffect(() => {
+    autoStateRef.current = autoState;
+  }, [autoState]);
+
   const onPetMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (autoState === "fastrun") {
+      e.preventDefault();
+      return;
+    }
+
     if (autoState === "eating") {
       e.preventDefault();
       return;
@@ -181,6 +192,8 @@ function Pet() {
 
   useEffect(() => {
     const removeSelectedListener = window.electronAPI.onEmotionSelected((emotion) => {
+      if (autoStateRef.current === "fastrun") return;
+
       emotionSelectedRef.current = true;
       setIsEmotionMenuOpen(false);
       setIsHolding(false);
@@ -202,6 +215,7 @@ function Pet() {
       }
 
       setIsEmotionMenuOpen(false);
+      if (autoStateRef.current === "fastrun") return;
       setAutoState("idle");
       menuOpenedFromSleepRef.current = false;
       menuOpenedFromWorkRef.current = false;
@@ -237,9 +251,33 @@ function Pet() {
   useEffect(() => {
     if (autoState !== "walk" || isHolding || isEmotionMenuOpen) return;
 
+    const fastRunCheck = window.setInterval(() => {
+      if (Math.random() < 0.02 && !isHoldingRef.current) {
+        setDirection(Math.random() < 0.5 ? -1 : 1);
+        setFastRunFrame(0);
+        setAutoState("fastrun");
+      }
+    }, 170);
+
+    return () => window.clearInterval(fastRunCheck);
+  }, [autoState, isHolding, isEmotionMenuOpen]);
+
+  useEffect(() => {
+    if (autoState !== "fastrun") return;
+
+    const fastRunTimer = window.setTimeout(() => {
+      setAutoState((currentState) => currentState === "fastrun" ? "walk" : currentState);
+    }, 5000);
+
+    return () => window.clearTimeout(fastRunTimer);
+  }, [autoState]);
+
+  useEffect(() => {
+    if ((autoState !== "walk" && autoState !== "fastrun") || isHolding || isEmotionMenuOpen) return;
+
     let animationFrame = 0;
     let previousTime = performance.now();
-    const walkSpeed = 90;
+    const walkSpeed = autoState === "fastrun" ? 270 : 90;
 
     const move = (currentTime: number) => {
       if (!isHoldingRef.current) {
@@ -255,13 +293,23 @@ function Pet() {
   }, [autoState, direction, isHolding, isEmotionMenuOpen]);
 
   useEffect(() => {
-    if (autoState !== "walk" || isHolding || isEmotionMenuOpen) {
+    if ((autoState !== "walk" && autoState !== "fastrun") || isHolding || isEmotionMenuOpen) {
       return;
     }
 
     const frameTimer = window.setInterval(() => {
       setWalkFrame((currentFrame) => (currentFrame + 1) % 2);
-    }, 170);
+    }, autoState === "fastrun" ? 70 : 170);
+
+    return () => window.clearInterval(frameTimer);
+  }, [autoState, isHolding, isEmotionMenuOpen]);
+
+  useEffect(() => {
+    if (autoState !== "fastrun" || isHolding || isEmotionMenuOpen) return;
+
+    const frameTimer = window.setInterval(() => {
+      setFastRunFrame((currentFrame) => (currentFrame + 1) % 2);
+    }, 120);
 
     return () => window.clearInterval(frameTimer);
   }, [autoState, isHolding, isEmotionMenuOpen]);
@@ -341,6 +389,8 @@ function Pet() {
       ? `${import.meta.env.BASE_URL}pet/eat${eatingFrame + 1}.png`
       : autoState === "work"
       ? `${import.meta.env.BASE_URL}pet/neptop${workFrame + 1}.png`
+      : autoState === "fastrun"
+      ? `${import.meta.env.BASE_URL}pet/fastrun${fastRunFrame + 1}.png`
       : autoState === "walk"
       ? `${import.meta.env.BASE_URL}pet/run${walkFrame + 1}.png`
       : `${import.meta.env.BASE_URL}pet/idle.png`;
