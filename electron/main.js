@@ -10,6 +10,7 @@ let emotionMenuCloseReason;
 // 💡 드래그가 시작될 때의 창 위치를 기억할 변수를 선언합니다.
 let startWindowX = 0;
 let startWindowY = 0;
+let boundaryNotified = false;
 
 function createWindow() {
   const preloadPath = fileURLToPath(new URL("preload.js", import.meta.url));
@@ -63,6 +64,7 @@ function createWindow() {
     const [x, y] = petWindow.getPosition();
     startWindowX = x;
     startWindowY = y;
+    boundaryNotified = false;
     console.log("드래그 시작 - 창 초기 위치 기록:", { startWindowX, startWindowY });
   });
 
@@ -103,6 +105,13 @@ function createWindow() {
     const { x: minX, width } = display.workArea;
     const maxX = minX + width - PET_SIZE;
     const nextX = Math.min(Math.max(x + deltaX, minX), maxX);
+    const atLeftBoundary = nextX === minX;
+    const atRightBoundary = nextX === maxX;
+    const movingIntoBoundary = (atLeftBoundary && deltaX < 0) || (atRightBoundary && deltaX > 0);
+
+    if (!atLeftBoundary && !atRightBoundary || !movingIntoBoundary) {
+      boundaryNotified = false;
+    }
 
     petWindow.setBounds({
       x: nextX,
@@ -111,7 +120,8 @@ function createWindow() {
       height: PET_SIZE,
     });
 
-    if (nextX !== x && (nextX === minX || nextX === maxX)) {
+    if (movingIntoBoundary && !boundaryNotified) {
+      boundaryNotified = true;
       petWindow.webContents.send("pet:auto-boundary");
     }
   });

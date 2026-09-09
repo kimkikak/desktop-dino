@@ -277,7 +277,7 @@ function Pet() {
 
     let animationFrame = 0;
     let previousTime = performance.now();
-    const walkSpeed = autoState === "fastrun" ? 270 : 90;
+    const walkSpeed = autoState === "fastrun" ? 360 : 90;
 
     const move = (currentTime: number) => {
       if (!isHoldingRef.current) {
