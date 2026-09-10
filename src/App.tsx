@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-type AutoState = "idle" | "walk" | "fastrun" | "sleep" | "eating" | "work";
+type AutoState = "idle" | "walk" | "fastrun" | "sleep" | "eating" | "work" | "roar";
 const isEmotionMenu = new URLSearchParams(window.location.search).get("window") === "emotion-menu";
 const emotions = [
   { value: "feed", label: "🍖", ariaLabel: "밥주기" },
@@ -12,7 +12,7 @@ const emotions = [
 declare global {
   interface Window {
     electronAPI: {
-      startDrag(): unknown;
+      startDrag(direction: 1 | -1, cursorX: number, cursorY: number): unknown;
       // 💡 메인 프로세스 메서드가 deltaX, deltaY를 받도록 하거나, 
       // 기존 매개변수 구조를 유지하되 내부 계산을 안정화합니다.
       movePet: (bx: number, by: number, ax: number, ay: number) => void;
@@ -84,6 +84,7 @@ function Pet() {
   const [sleepFrame, setSleepFrame] = useState(0);
   const [eatingFrame, setEatingFrame] = useState(0);
   const [workFrame, setWorkFrame] = useState(0);
+  const [roarFrame, setRoarFrame] = useState(0);
   const positionRef = useRef({ x: -1, y: -1 });
   const autoStateRef = useRef<AutoState>("idle");
   const isHoldingRef = useRef(false);
@@ -111,7 +112,7 @@ function Pet() {
 
     if (e.button === 2) {
       e.preventDefault();
-      if (autoState === "sleep") return;
+      if (autoState === "sleep" || autoState === "roar") return;
 
       menuOpenedFromSleepRef.current = false;
       menuOpenedFromWorkRef.current = autoState === "work";
@@ -143,7 +144,7 @@ function Pet() {
     setIsHolding(true);
     setAutoState("idle");
 
-    window.electronAPI.startDrag();
+    window.electronAPI.startDrag(direction, e.screenX, e.screenY);
   };
 
   useEffect(() => {
@@ -228,7 +229,7 @@ function Pet() {
   }, []);
 
   useEffect(() => {
-    if (isHolding || isHoldingRef.current || isEmotionMenuOpen || autoState === "sleep" || autoState === "eating" || autoState === "work") return;
+    if (isHolding || isHoldingRef.current || isEmotionMenuOpen || autoState === "sleep" || autoState === "eating" || autoState === "work" || autoState === "roar") return;
 
     const duration = autoState === "idle"
       ? 1000 + Math.random() * 2000
@@ -238,7 +239,14 @@ function Pet() {
         setAutoState((currentState) => {
           if (currentState === "idle") {
             setDirection(Math.random() < 0.5 ? -1 : 1);
-            return Math.random() < 0.15 ? "sleep" : "walk";
+            const nextState = Math.random();
+            if (nextState < 0.12) {
+              setRoarFrame(0);
+              return "roar";
+            }
+            if (nextState < 0.27) return "sleep";
+            if (nextState < 0.35) return "idle";
+            return "walk";
           }
           return "idle";
         });
@@ -346,6 +354,25 @@ function Pet() {
   }, [autoState, isHolding, isEmotionMenuOpen]);
 
   useEffect(() => {
+    if (autoState !== "roar" || isHolding || isEmotionMenuOpen) return;
+
+    let nextFrame = 0;
+    const frameTimer = window.setInterval(() => {
+      nextFrame += 1;
+
+      if (nextFrame >= 4) {
+        window.clearInterval(frameTimer);
+        setAutoState("idle");
+        return;
+      }
+
+      setRoarFrame(nextFrame);
+    }, 250);
+
+    return () => window.clearInterval(frameTimer);
+  }, [autoState, isHolding, isEmotionMenuOpen]);
+
+  useEffect(() => {
     if (autoState !== "work" || isHolding || isEmotionMenuOpen) return;
 
     const frameTimer = window.setInterval(() => {
@@ -387,6 +414,8 @@ function Pet() {
       ? `${import.meta.env.BASE_URL}pet/sleep${sleepFrame + 1}.png`
       : autoState === "eating"
       ? `${import.meta.env.BASE_URL}pet/eat${eatingFrame + 1}.png`
+      : autoState === "roar"
+      ? `${import.meta.env.BASE_URL}pet/roar${roarFrame + 1}.png`
       : autoState === "work"
       ? `${import.meta.env.BASE_URL}pet/neptop${workFrame + 1}.png`
       : autoState === "fastrun"

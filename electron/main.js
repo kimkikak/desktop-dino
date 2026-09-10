@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { fileURLToPath } from "node:url";
 
 const PET_SIZE = 100;
+const TAIL_OFFSET_X = PET_SIZE / 2.7;
+const TAIL_OFFSET_Y = PET_SIZE * 0.05;
 const EMOTION_OVERLAY_SIZE = 400;
 let petWindow;
 let emotionOverlayWindow;
@@ -59,12 +61,27 @@ function createWindow() {
   });
 
   // 💡 1. 드래그 시작 시점의 창 위치를 기록하는 이벤트를 새로 추가합니다.
-  ipcMain.on("pet:start-drag", () => {
+  ipcMain.on("pet:start-drag", (_, direction, cursorX, cursorY) => {
     if (!petWindow || emotionOverlayWindow) return;
-    const [x, y] = petWindow.getPosition();
-    startWindowX = x;
-    startWindowY = y;
+    const { x, y } = petWindow.getBounds();
+    const tailOffsetFromWindow = direction === 1
+      ? TAIL_OFFSET_X
+      : PET_SIZE - TAIL_OFFSET_X;
+    const display = screen.getDisplayNearestPoint({ x, y });
+    const { x: minX, y: minY, width, height } = display.workArea;
+    const targetX = cursorX - tailOffsetFromWindow;
+    const targetY = cursorY - TAIL_OFFSET_Y;
+    startWindowX = Math.min(Math.max(targetX, minX), minX + width - PET_SIZE);
+    startWindowY = Math.min(Math.max(targetY, minY), minY + height - PET_SIZE);
     boundaryNotified = false;
+
+    petWindow.setBounds({
+      x: startWindowX,
+      y: startWindowY,
+      width: PET_SIZE,
+      height: PET_SIZE,
+    });
+
     console.log("드래그 시작 - 창 초기 위치 기록:", { startWindowX, startWindowY });
   });
 
