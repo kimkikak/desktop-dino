@@ -320,8 +320,8 @@ function Pet() {
     }
 
     const frameTimer = window.setInterval(() => {
-      setSleepFrame((currentFrame) => (currentFrame + 1) % 3);
-    }, 350);
+      setSleepFrame((currentFrame) => (currentFrame + 1) % 4);
+    }, 800);
 
     return () => window.clearInterval(frameTimer);
   }, [autoState, isHolding, isEmotionMenuOpen, isWakingUp]);
@@ -363,7 +363,7 @@ function Pet() {
 
     const wakeupTimer = window.setTimeout(() => {
       setIsWakingUp(true);
-    }, 5000 + Math.random() * 25000);
+    }, 10000 + Math.random() * 50000);
 
     return () => window.clearTimeout(wakeupTimer);
   }, [autoState]);
