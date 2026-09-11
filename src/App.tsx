@@ -13,6 +13,7 @@ declare global {
   interface Window {
     electronAPI: {
       startDrag(direction: 1 | -1, cursorX: number, cursorY: number): unknown;
+      resizePet(width: number, height: number): unknown;
       // 💡 메인 프로세스 메서드가 deltaX, deltaY를 받도록 하거나, 
       // 기존 매개변수 구조를 유지하되 내부 계산을 안정화합니다.
       movePet: (bx: number, by: number, ax: number, ay: number) => void;
@@ -284,20 +285,27 @@ function Pet() {
     if ((autoState !== "walk" && autoState !== "fastrun") || isHolding || isEmotionMenuOpen) return;
 
     let animationFrame = 0;
+    let cancelled = false;
     let previousTime = performance.now();
     const walkSpeed = autoState === "fastrun" ? 360 : 90;
 
     const move = (currentTime: number) => {
-      if (!isHoldingRef.current) {
-        const elapsed = currentTime - previousTime;
-        previousTime = currentTime;
-        window.electronAPI.autoMove(direction * walkSpeed * elapsed / 1000);
+      if (cancelled || isHoldingRef.current) return;
+
+      const elapsed = currentTime - previousTime;
+      previousTime = currentTime;
+      window.electronAPI.autoMove(direction * walkSpeed * elapsed / 1000);
+
+      if (!cancelled) {
         animationFrame = requestAnimationFrame(move);
       }
     };
 
     animationFrame = requestAnimationFrame(move);
-    return () => cancelAnimationFrame(animationFrame);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(animationFrame);
+    };
   }, [autoState, direction, isHolding, isEmotionMenuOpen]);
 
   useEffect(() => {
@@ -423,7 +431,6 @@ function Pet() {
       : autoState === "walk"
       ? `${import.meta.env.BASE_URL}pet/run${walkFrame + 1}.png`
       : `${import.meta.env.BASE_URL}pet/idle.png`;
-
   return (
     // 💡 .pet div 자체에 grab 커서가 먹히도록 설정 (CSS에서 세팅)
     <div className="pet" onMouseDown={onPetMouseDown} onContextMenu={(e) => e.preventDefault()}>
@@ -431,6 +438,10 @@ function Pet() {
         src={sprite}
         alt="pet"
         draggable={false}
+        onLoad={(event) => {
+          const image = event.currentTarget;
+          window.electronAPI.resizePet(image.naturalWidth, image.naturalHeight);
+        }}
         style={{ transform: `scaleX(${direction})`, pointerEvents: "none" }}
       />
     </div>

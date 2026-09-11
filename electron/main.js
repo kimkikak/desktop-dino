@@ -13,6 +13,7 @@ let emotionMenuCloseReason;
 let startWindowX = 0;
 let startWindowY = 0;
 let boundaryNotified = false;
+let isProgrammaticResize = false;
 
 function createWindow() {
   const preloadPath = fileURLToPath(new URL("preload.js", import.meta.url));
@@ -51,8 +52,13 @@ function createWindow() {
 
   // 핵심: 어떤 이유로든 리사이즈 시도 자체를 원천 차단 + 로그로 원인 확인
   petWindow.on("will-resize", (event, newBounds) => {
-    console.log("OS가 리사이즈 요청함:", newBounds, "현재:", petWindow.getBounds());
-    event.preventDefault();
+    console.log("OS가 리사이즈 요청함:", newBounds, "현재:", petWindow.getBounds(), {
+      programmatic: isProgrammaticResize,
+      action: isProgrammaticResize ? "통과" : "차단",
+    });
+    if (!isProgrammaticResize) {
+      event.preventDefault();
+    }
   });
 
   // 혹시 will-resize를 뚫고 실제로 리사이즈가 발생하는지도 확인
@@ -60,26 +66,56 @@ function createWindow() {
     console.log("실제 RESIZE 발생함! 현재 크기:", petWindow.getSize());
   });
 
+  ipcMain.on("pet:resize", (_, requestedWidth, requestedHeight) => {
+    if (!petWindow || emotionOverlayWindow) return;
+
+    console.log("[RESIZE]", {
+      width: requestedWidth,
+      height: requestedHeight,
+      before: petWindow.getBounds(),
+    });
+    const width = Math.max(1, Math.round(requestedWidth));
+    const height = Math.max(1, Math.round(requestedHeight));
+    const { x, y, width: currentWidth, height: currentHeight } = petWindow.getBounds();
+    const TOLERANCE = 2;
+    if (
+      Math.abs(width - currentWidth) <= TOLERANCE
+      && Math.abs(height - currentHeight) <= TOLERANCE
+    ) {
+      return;
+    }
+
+    isProgrammaticResize = true;
+    try {
+      petWindow.setMinimumSize(1, 1);
+      petWindow.setMaximumSize(width, height);
+      petWindow.setMinimumSize(width, height);
+      petWindow.setBounds({ x, y, width, height });
+    } finally {
+      isProgrammaticResize = false;
+    }
+  });
+
   // 💡 1. 드래그 시작 시점의 창 위치를 기록하는 이벤트를 새로 추가합니다.
   ipcMain.on("pet:start-drag", (_, direction, cursorX, cursorY) => {
     if (!petWindow || emotionOverlayWindow) return;
-    const { x, y } = petWindow.getBounds();
+    const { x, y, width: currentWidth, height: currentHeight } = petWindow.getBounds();
     const tailOffsetFromWindow = direction === 1
       ? TAIL_OFFSET_X
-      : PET_SIZE - TAIL_OFFSET_X;
+      : currentWidth - TAIL_OFFSET_X;
     const display = screen.getDisplayNearestPoint({ x, y });
     const { x: minX, y: minY, width, height } = display.workArea;
     const targetX = cursorX - tailOffsetFromWindow;
     const targetY = cursorY - TAIL_OFFSET_Y;
-    startWindowX = Math.min(Math.max(targetX, minX), minX + width - PET_SIZE);
-    startWindowY = Math.min(Math.max(targetY, minY), minY + height - PET_SIZE);
+    startWindowX = Math.min(Math.max(targetX, minX), minX + width - currentWidth);
+    startWindowY = Math.min(Math.max(targetY, minY), minY + height - currentHeight);
     boundaryNotified = false;
 
     petWindow.setBounds({
       x: startWindowX,
       y: startWindowY,
-      width: PET_SIZE,
-      height: PET_SIZE,
+      width: currentWidth,
+      height: currentHeight,
     });
 
     console.log("드래그 시작 - 창 초기 위치 기록:", { startWindowX, startWindowY });
@@ -88,6 +124,14 @@ function createWindow() {
   // 💡 2. 기존의 pet:move 이벤트를 누적 이동 거리(Delta) 방식으로 수정합니다.
   ipcMain.on("pet:move", (_, bx, by, ax, ay) => {
     if (!petWindow || emotionOverlayWindow) return;
+
+    console.log("[PET_MOVE_CALLED]", {
+      bx,
+      by,
+      ax,
+      ay,
+      current: petWindow.getBounds(),
+    });
 
     // bx, by: 처음 마우스를 클릭한 절대 좌표 (고정값)
     // ax, ay: 현재 마우스가 움직이고 있는 절대 좌표 (가변값)
@@ -100,27 +144,30 @@ function createWindow() {
     const targetY = startWindowY + dy;
 
     // 화면 작업 영역 구하기 및 화면 이탈 방지 제한 (기존 로직 유지)
+    const { width: currentWidth, height: currentHeight } = petWindow.getBounds();
     const display = screen.getDisplayNearestPoint({ x: startWindowX, y: startWindowY });
     const { x: minX, y: minY, width, height } = display.workArea;
 
-    const newX = Math.min(Math.max(targetX, minX), minX + width - PET_SIZE);
-    const newY = Math.min(Math.max(targetY, minY), minY + height - PET_SIZE);
+    const newX = Math.min(Math.max(targetX, minX), minX + width - currentWidth);
+    const newY = Math.min(Math.max(targetY, minY), minY + height - currentHeight);
 
     petWindow.setBounds({
       x: newX,
       y: newY,
-      width: PET_SIZE,
-      height: PET_SIZE,
+      width: currentWidth,
+      height: currentHeight,
     });
   });
 
   ipcMain.on("pet:auto-move", (_, deltaX) => {
     if (!petWindow || emotionOverlayWindow) return;
 
-    const { x, y } = petWindow.getBounds();
+    const currentBounds = petWindow.getBounds();
+    console.log("[AUTO_MOVE]", { deltaX, before: currentBounds });
+    const { x, y, width: currentWidth, height: currentHeight } = currentBounds;
     const display = screen.getDisplayNearestPoint({ x, y });
     const { x: minX, width } = display.workArea;
-    const maxX = minX + width - PET_SIZE;
+    const maxX = minX + width - currentWidth;
     const nextX = Math.min(Math.max(x + deltaX, minX), maxX);
     const atLeftBoundary = nextX === minX;
     const atRightBoundary = nextX === maxX;
@@ -133,8 +180,8 @@ function createWindow() {
     petWindow.setBounds({
       x: nextX,
       y,
-      width: PET_SIZE,
-      height: PET_SIZE,
+      width: currentWidth,
+      height: currentHeight,
     });
 
     if (movingIntoBoundary && !boundaryNotified) {
@@ -146,15 +193,15 @@ function createWindow() {
   ipcMain.on("pet:open-emotion-menu", () => {
     if (!petWindow || emotionOverlayWindow) return;
 
-    const { x, y } = petWindow.getBounds();
-    const display = screen.getDisplayNearestPoint({ x: x + PET_SIZE / 2, y: y + PET_SIZE / 2 });
+    const { x, y, width: currentWidth, height: currentHeight } = petWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: x + currentWidth / 2, y: y + currentHeight / 2 });
     const { x: minX, y: minY, width, height } = display.workArea;
     const overlayX = Math.min(
-      Math.max(x + PET_SIZE / 2 - EMOTION_OVERLAY_SIZE / 2, minX),
+      Math.max(x + currentWidth / 2 - EMOTION_OVERLAY_SIZE / 2, minX),
       minX + width - EMOTION_OVERLAY_SIZE,
     );
     const overlayY = Math.min(
-      Math.max(y + PET_SIZE / 2 - EMOTION_OVERLAY_SIZE / 2, minY),
+      Math.max(y + currentHeight / 2 - EMOTION_OVERLAY_SIZE / 2, minY),
       minY + height - EMOTION_OVERLAY_SIZE,
     );
     const preloadPath = fileURLToPath(new URL("preload.js", import.meta.url));

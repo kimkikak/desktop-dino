@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("pet:auto-boundary", listener);
   },
   startDrag: (direction, cursorX, cursorY) => ipcRenderer.send("pet:start-drag", direction, cursorX, cursorY),
+  resizePet: (width, height) => ipcRenderer.send("pet:resize", width, height),
   openEmotionMenu: () => ipcRenderer.send("pet:open-emotion-menu"),
   selectEmotion: (emotion) => ipcRenderer.send("pet:select-emotion", emotion),
   closeEmotionMenu: (reason) => ipcRenderer.send("pet:close-emotion-menu", reason),
