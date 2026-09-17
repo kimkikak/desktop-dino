@@ -7,7 +7,7 @@ const TAIL_OFFSET_X = PET_SIZE / 2.7;
 const TAIL_OFFSET_Y = PET_SIZE * 0.05;
 const EMOTION_OVERLAY_SIZE = 400;
 const SETTINGS_WINDOW_WIDTH = 430;
-const SETTINGS_WINDOW_HEIGHT = 280;
+const SETTINGS_WINDOW_HEIGHT = 340;
 let petWindow;
 let emotionOverlayWindow;
 let settingsWindow;
@@ -150,9 +150,15 @@ function createWindow() {
     boundaryNotified = false;
     autoMoveX = startWindowX;
 
+    // 💡 width/height를 반드시 함께 명시해서 setBounds를 호출합니다. DPI 배율이
+    // 100%가 아닌 모니터에서는 창을 옮길 때마다 OS가 물리 픽셀 <-> DIP 변환을
+    // 살짝 다르게 반올림해서 크기가 ±1px 정도 흔들릴 수 있는데, 매번 목표 크기를
+    // 다시 명시해두면 이 흔들림이 즉시 교정됩니다. (setPosition만 쓰고 크기를
+    // 다시 넣지 않으면, 이 교정이 없어져서 드리프트가 누적되어 창이 계속
+    // 커지는 문제가 실제로 재현되었습니다.)
     petWindow.setBounds({
-      x: startWindowX,
-      y: startWindowY,
+      x: Math.round(startWindowX),
+      y: Math.round(startWindowY),
       width: currentWidth,
       height: currentHeight,
     });
@@ -195,9 +201,11 @@ function createWindow() {
     const newY = Math.min(Math.max(targetY, minY), minY + height - currentHeight);
     autoMoveX = newX;
 
+    // 💡 pet:start-drag 주석 참고: width/height를 함께 다시 명시해야
+    // DPI 반올림 드리프트가 누적되지 않습니다.
     petWindow.setBounds({
-      x: newX,
-      y: newY,
+      x: Math.round(newX),
+      y: Math.round(newY),
       width: currentWidth,
       height: currentHeight,
     });
@@ -229,6 +237,8 @@ function createWindow() {
       boundaryNotified = false;
     }
 
+    // 💡 pet:start-drag 주석 참고: width/height를 함께 다시 명시해야
+    // DPI 반올림 드리프트가 누적되지 않습니다.
     petWindow.setBounds({
       x: nextX,
       y,
@@ -370,6 +380,10 @@ function createWindow() {
 
   ipcMain.on("pet:set-petting-mode", (_, enabled) => {
     pettingMode = Boolean(enabled);
+  });
+
+  ipcMain.on("pet:quit-app", () => {
+    app.quit();
   });
 
   const closeEmotionMenu = (reason) => {

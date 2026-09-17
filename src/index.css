@@ -20,7 +20,7 @@ html:has(.settings-window),
 body:has(.settings-window),
 #root:has(.settings-window) {
   width: 400px;
-  height: 280px;
+  height: 340px;
 }
 
 /* 펫 컨테이너 div */
@@ -82,7 +82,7 @@ body:has(.settings-window),
 .settings-window {
   box-sizing: border-box;
   width: 400px;
-  height: 280px;
+  height: 340px;
   padding: 30px;
   color: #28263a;
   background: #fffaf2;
@@ -151,6 +151,24 @@ body:has(.settings-window),
   height: 18px;
   accent-color: #d4584e;
   cursor: pointer;
+}
+
+.quit-setting {
+  display: block;
+  width: 100%;
+  margin-top: 30px;
+  padding: 10px;
+  border: 1px solid #e0a39c;
+  border-radius: 8px;
+  background: transparent;
+  color: #c0392b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quit-setting:hover {
+  background: #fbe4e0;
 }
 
 .pet:active {

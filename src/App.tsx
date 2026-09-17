@@ -32,6 +32,7 @@ declare global {
       setPetScale: (scale: number) => void;
       setBorderEnabled: (enabled: boolean) => void;
       setPettingMode: (enabled: boolean) => void;
+      quitApp: () => void;
       onPetScaleChanged: (callback: (scale: number) => void) => () => void;
       onBorderEnabledChanged: (callback: (enabled: boolean) => void) => () => void;
       onEmotionSelected: (callback: (emotion: string) => void) => () => void;
@@ -85,6 +86,13 @@ function SettingsWindow() {
           onChange={(event) => updateBorder(event.target.checked)}
         />
       </label>
+      <button
+        type="button"
+        className="quit-setting"
+        onClick={() => window.electronAPI.quitApp()}
+      >
+        앱 종료
+      </button>
     </main>
   );
 }
