@@ -23,6 +23,22 @@ let startWindowY = 0;
 let boundaryNotified = false;
 let isProgrammaticResize = false;
 
+// 💡 자동 이동(auto-move)의 소수점 이하 이동량이 매 프레임 정수 좌표로
+// 잘려나가지 않도록, 정수로 반올림하기 전의 실수 좌표를 별도로 추적합니다.
+// 드래그/스케일 변경 등 다른 경로로 창 위치가 바뀔 때마다 이 값도 함께 맞춰줍니다.
+let autoMoveX = null;
+
+// 💡 petImageSize/petScale로부터 창 크기를 계산합니다. 드래그 중에는 이 값을
+// 써야 하며, petWindow.getBounds()의 width/height를 그대로 되먹이면 안 됩니다.
+// (모니터 간 DPI 재해석 등으로 OS가 순간적으로 다른 크기를 보고할 경우
+// 그 값이 다시 setBounds에 그대로 들어가 창이 커지는 것처럼 보일 수 있습니다.)
+function computeWindowSize() {
+  return {
+    width: Math.max(1, Math.round(petImageSize.width * petScale) + FRAME_PADDING * 2),
+    height: Math.max(1, Math.round(petImageSize.height * petScale) + FRAME_PADDING * 2),
+  };
+}
+
 function createWindow() {
   const preloadPath = fileURLToPath(new URL("preload.js", import.meta.url));
   const iconPath = app.isPackaged
@@ -94,8 +110,7 @@ function createWindow() {
       height: requestedHeight,
       before: petWindow.getBounds(),
     });
-    const width = Math.max(1, Math.round(petImageSize.width * petScale) + FRAME_PADDING * 2);
-    const height = Math.max(1, Math.round(petImageSize.height * petScale) + FRAME_PADDING * 2);
+    const { width, height } = computeWindowSize();
     const { x, y, width: currentWidth, height: currentHeight } = petWindow.getBounds();
     const TOLERANCE = 2;
     if (
@@ -119,7 +134,8 @@ function createWindow() {
   // 💡 1. 드래그 시작 시점의 창 위치를 기록하는 이벤트를 새로 추가합니다.
   ipcMain.on("pet:start-drag", (_, direction, cursorX, cursorY) => {
     if (!petWindow || emotionOverlayWindow) return;
-    const { x, y, width: currentWidth, height: currentHeight } = petWindow.getBounds();
+    const { x, y } = petWindow.getBounds();
+    const { width: currentWidth, height: currentHeight } = computeWindowSize();
     const tailOffsetX = FRAME_PADDING + TAIL_OFFSET_X * petScale;
     const tailOffsetY = FRAME_PADDING + TAIL_OFFSET_Y * petScale;
     const tailOffsetFromWindow = direction === 1
@@ -132,6 +148,7 @@ function createWindow() {
     startWindowX = Math.min(Math.max(targetX, minX), minX + width - currentWidth);
     startWindowY = Math.min(Math.max(targetY, minY), minY + height - currentHeight);
     boundaryNotified = false;
+    autoMoveX = startWindowX;
 
     petWindow.setBounds({
       x: startWindowX,
@@ -166,12 +183,17 @@ function createWindow() {
     const targetY = startWindowY + dy;
 
     // 화면 작업 영역 구하기 및 화면 이탈 방지 제한 (기존 로직 유지)
-    const { width: currentWidth, height: currentHeight } = petWindow.getBounds();
+    // 💡 창 크기는 OS에서 다시 읽지 않고 petImageSize/petScale로 직접 계산합니다.
+    // getBounds().width/height를 그대로 되먹이면, 드래그 중 모니터 간 DPI 재해석 등으로
+    // OS가 순간적으로 다른 크기를 보고할 때 그 값이 그대로 적용되어 창이 커지는 것처럼
+    // 보일 수 있습니다.
+    const { width: currentWidth, height: currentHeight } = computeWindowSize();
     const display = screen.getDisplayNearestPoint({ x: startWindowX, y: startWindowY });
     const { x: minX, y: minY, width, height } = display.workArea;
 
     const newX = Math.min(Math.max(targetX, minX), minX + width - currentWidth);
     const newY = Math.min(Math.max(targetY, minY), minY + height - currentHeight);
+    autoMoveX = newX;
 
     petWindow.setBounds({
       x: newX,
@@ -185,14 +207,22 @@ function createWindow() {
     if (!petWindow || emotionOverlayWindow) return;
 
     const currentBounds = petWindow.getBounds();
-    console.log("[AUTO_MOVE]", { deltaX, before: currentBounds });
-    const { x, y, width: currentWidth, height: currentHeight } = currentBounds;
-    const display = screen.getDisplayNearestPoint({ x, y });
+    const { y } = currentBounds;
+    const { width: currentWidth, height: currentHeight } = computeWindowSize();
+    // 💡 창 좌표(getBounds)는 항상 정수라, 이걸 기준으로 매번 다시 시작하면
+    // 1px 미만의 소수점 이동량(느린 걷기 속도 + 높은 주사율에서 흔함)이
+    // 반올림 과정에서 매 프레임 사라져 버립니다. autoMoveX에 소수점까지
+    // 누적해두고, 실제 창 이동에만 반올림한 값을 사용합니다.
+    const baseX = autoMoveX ?? currentBounds.x;
+    console.log("[AUTO_MOVE]", { deltaX, before: currentBounds, baseX });
+    const display = screen.getDisplayNearestPoint({ x: Math.round(baseX), y });
     const { x: minX, width } = display.workArea;
     const maxX = minX + width - currentWidth;
-    const nextX = Math.min(Math.max(x + deltaX, minX), maxX);
-    const atLeftBoundary = nextX === minX;
-    const atRightBoundary = nextX === maxX;
+    const targetX = Math.min(Math.max(baseX + deltaX, minX), maxX);
+    autoMoveX = targetX;
+    const nextX = Math.round(targetX);
+    const atLeftBoundary = targetX === minX;
+    const atRightBoundary = targetX === maxX;
     const movingIntoBoundary = (atLeftBoundary && deltaX < 0) || (atRightBoundary && deltaX > 0);
 
     if (!atLeftBoundary && !atRightBoundary || !movingIntoBoundary) {
@@ -314,11 +344,11 @@ function createWindow() {
     if (!petWindow || !Number.isFinite(requestedScale)) return;
 
     petScale = Math.min(2, Math.max(0.5, Number(requestedScale)));
-    const width = Math.max(1, Math.round(petImageSize.width * petScale) + FRAME_PADDING * 2);
-    const height = Math.max(1, Math.round(petImageSize.height * petScale) + FRAME_PADDING * 2);
+    const { width, height } = computeWindowSize();
     const { x, y, width: currentWidth, height: currentHeight } = petWindow.getBounds();
     const centeredX = Math.round(x - (width - currentWidth) / 2);
     const centeredY = Math.round(y - (height - currentHeight) / 2);
+    autoMoveX = centeredX;
     isProgrammaticResize = true;
     try {
       petWindow.setMinimumSize(1, 1);
