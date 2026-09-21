@@ -138,21 +138,6 @@ body:has(.settings-window),
   cursor: pointer;
 }
 
-.border-setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 26px;
-  font-size: 15px;
-}
-
-.border-setting input {
-  width: 18px;
-  height: 18px;
-  accent-color: #d4584e;
-  cursor: pointer;
-}
-
 .color-setting {
   display: flex;
   align-items: center;
@@ -233,15 +218,6 @@ img {
   height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
-  filter:
-    drop-shadow(1px 0 0 white)
-    drop-shadow(-1px 0 0 white)
-    drop-shadow(0 1px 0 white)
-    drop-shadow(0 -1px 0 white);
   user-select: none;
   -webkit-user-drag: none;
-}
-
-.pet.no-border img {
-  filter: none;
 }

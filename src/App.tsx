@@ -116,11 +116,9 @@ declare global {
       closeEmotionMenu: (reason?: "cancel") => void;
       closeSettings: () => void;
       setPetScale: (scale: number) => void;
-      setBorderEnabled: (enabled: boolean) => void;
       setPettingMode: (enabled: boolean) => void;
       quitApp: () => void;
       onPetScaleChanged: (callback: (scale: number) => void) => () => void;
-      onBorderEnabledChanged: (callback: (enabled: boolean) => void) => () => void;
       onEmotionSelected: (callback: (emotion: string) => void) => () => void;
       onEmotionMenuClosed: (callback: (reason?: "cancel") => void) => () => void;
     };
@@ -129,20 +127,13 @@ declare global {
 
 function SettingsWindow() {
   const initialScale = Number(new URLSearchParams(window.location.search).get("scale")) || 1;
-  const initialBorderEnabled = new URLSearchParams(window.location.search).get("border") === "true";
   const [scale, setScale] = useState(initialScale);
-  const [borderEnabled, setBorderEnabled] = useState(initialBorderEnabled);
   const [petColor, setPetColor] = useState<string>(DEFAULT_PET_COLOR);
 
   const updateScale = (value: string) => {
     const nextScale = Number(value);
     setScale(nextScale);
     window.electronAPI.setPetScale(nextScale);
-  };
-
-  const updateBorder = (enabled: boolean) => {
-    setBorderEnabled(enabled);
-    window.electronAPI.setBorderEnabled(enabled);
   };
 
   const updatePetColor = (color: string) => {
@@ -168,14 +159,6 @@ function SettingsWindow() {
           step="0.1"
           value={scale}
           onChange={(event) => updateScale(event.target.value)}
-        />
-      </label>
-      <label className="border-setting">
-        <span>공룡 테두리</span>
-        <input
-          type="checkbox"
-          checked={borderEnabled}
-          onChange={(event) => updateBorder(event.target.checked)}
         />
       </label>
       <label className="color-setting">
@@ -258,7 +241,6 @@ function Pet() {
   const [isPettingHeld, setIsPettingHeld] = useState(false);
   const [pettingFrame, setPettingFrame] = useState(1);
   const [petScale, setPetScale] = useState(1);
-  const [borderEnabled, setBorderEnabled] = useState(false);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [petColor, setPetColor] = useState<string>(DEFAULT_PET_COLOR);
   const [recoloredSprite, setRecoloredSprite] = useState<string | undefined>(undefined);
@@ -483,10 +465,6 @@ function Pet() {
 
   useEffect(() => {
     return window.electronAPI.onPetScaleChanged(setPetScale);
-  }, []);
-
-  useEffect(() => {
-    return window.electronAPI.onBorderEnabledChanged(setBorderEnabled);
   }, []);
 
   useEffect(() => {
@@ -750,7 +728,7 @@ function Pet() {
   return (
     // 💡 .pet div 자체에 grab 커서가 먹히도록 설정 (CSS에서 세팅)
     <div
-      className={`pet${borderEnabled ? "" : " no-border"}`}
+      className="pet"
       onMouseDown={onPetMouseDown}
       onMouseMove={onPetMouseMove}
       onContextMenu={(e) => e.preventDefault()}

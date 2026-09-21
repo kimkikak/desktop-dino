@@ -13,7 +13,6 @@ let emotionOverlayWindow;
 let settingsWindow;
 let emotionMenuCloseReason;
 let petScale = 1;
-let borderEnabled = false;
 let pettingMode = false;
 let petImageSize = { width: PET_SIZE, height: PET_SIZE };
 
@@ -334,8 +333,8 @@ function createWindow() {
     });
 
     const settingsUrl = app.isPackaged
-      ? `file://${fileURLToPath(new URL("../dist/index.html", import.meta.url))}?window=settings&scale=${petScale}&border=${borderEnabled}`
-      : `http://localhost:5173/?window=settings&scale=${petScale}&border=${borderEnabled}`;
+      ? `file://${fileURLToPath(new URL("../dist/index.html", import.meta.url))}?window=settings&scale=${petScale}`
+      : `http://localhost:5173/?window=settings&scale=${petScale}`;
     settingsWindow.loadURL(settingsUrl);
     settingsWindow.on("closed", () => {
       settingsWindow = undefined;
@@ -369,13 +368,6 @@ function createWindow() {
       isProgrammaticResize = false;
     }
     petWindow.webContents.send("pet:scale-changed", petScale);
-  });
-
-  ipcMain.on("pet:set-border-enabled", (_, enabled) => {
-    borderEnabled = Boolean(enabled);
-    if (petWindow && !petWindow.isDestroyed()) {
-      petWindow.webContents.send("pet:border-enabled-changed", borderEnabled);
-    }
   });
 
   ipcMain.on("pet:set-petting-mode", (_, enabled) => {
