@@ -14,6 +14,92 @@ const emotions = [
   { value: "settings", label: "⚙️", ariaLabel: "설정" },
 ];
 
+// 공룡 몸 색깔 커스터마이징: 스프라이트의 몸통 부분은 이 크로마키 색으로
+// 미리 칠해져 있고, 이 색과 정확히 일치하는 픽셀만 사용자가 고른 색으로 치환한다.
+const CHROMA_KEY_HEX = "#FF00FF";
+const DEFAULT_PET_COLOR = "#000000";
+const PET_COLOR_STORAGE_KEY = "trexpet:petColor";
+
+// 저장된 색을 앱 시작 시 불러오지 않고, 항상 DEFAULT_PET_COLOR로 시작한다.
+// (창 간 실시간 동기화를 위해 변경 시 저장은 계속하지만, 재시작 시 복원하지는 않음)
+function writeStoredPetColor(color: string) {
+  try {
+    window.localStorage.setItem(PET_COLOR_STORAGE_KEY, color);
+  } catch {
+    // localStorage 접근 불가 환경에서는 조용히 무시
+  }
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace("#", "");
+  const expanded = normalized.length === 3
+    ? normalized.split("").map((c) => c + c).join("")
+    : normalized;
+  const value = parseInt(expanded, 16);
+  return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
+}
+
+const CHROMA_KEY_COLOR = hexToRgb(CHROMA_KEY_HEX);
+
+// (스프라이트 경로 + 목표 색상) 조합별로 치환 결과를 캐싱해서,
+// 같은 조합에 대해 canvas 연산을 다시 하지 않도록 한다.
+const recolorCache = new Map<string, Promise<string>>();
+
+// 스프라이트 이미지의 크로마키(CHROMA_KEY_HEX) 픽셀만 targetColor로 치환한
+// data URL을 반환한다. 그 외 픽셀(투명 포함)은 그대로 유지된다.
+function recolorSprite(imageSrc: string, targetColor: string): Promise<string> {
+  const cacheKey = `${imageSrc}|${targetColor}`;
+  const cached = recolorCache.get(cacheKey);
+  if (cached) return cached;
+
+  const normalizedTarget = targetColor.trim().toLowerCase();
+  if (normalizedTarget === CHROMA_KEY_HEX.toLowerCase()) {
+    const identity = Promise.resolve(imageSrc);
+    recolorCache.set(cacheKey, identity);
+    return identity;
+  }
+
+  const promise = new Promise<string>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        reject(new Error("canvas 2d context를 가져올 수 없습니다"));
+        return;
+      }
+
+      ctx.drawImage(image, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const { data } = imageData;
+      const { r: targetR, g: targetG, b: targetB } = hexToRgb(targetColor);
+
+      for (let i = 0; i < data.length; i += 4) {
+        if (
+          data[i] === CHROMA_KEY_COLOR.r
+          && data[i + 1] === CHROMA_KEY_COLOR.g
+          && data[i + 2] === CHROMA_KEY_COLOR.b
+        ) {
+          data[i] = targetR;
+          data[i + 1] = targetG;
+          data[i + 2] = targetB;
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL());
+    };
+    image.onerror = () => reject(new Error(`이미지를 불러오지 못했습니다: ${imageSrc}`));
+    image.src = imageSrc;
+  });
+
+  promise.catch(() => recolorCache.delete(cacheKey));
+  recolorCache.set(cacheKey, promise);
+  return promise;
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -46,6 +132,7 @@ function SettingsWindow() {
   const initialBorderEnabled = new URLSearchParams(window.location.search).get("border") === "true";
   const [scale, setScale] = useState(initialScale);
   const [borderEnabled, setBorderEnabled] = useState(initialBorderEnabled);
+  const [petColor, setPetColor] = useState<string>(DEFAULT_PET_COLOR);
 
   const updateScale = (value: string) => {
     const nextScale = Number(value);
@@ -56,6 +143,11 @@ function SettingsWindow() {
   const updateBorder = (enabled: boolean) => {
     setBorderEnabled(enabled);
     window.electronAPI.setBorderEnabled(enabled);
+  };
+
+  const updatePetColor = (color: string) => {
+    setPetColor(color);
+    writeStoredPetColor(color);
   };
 
   return (
@@ -84,6 +176,14 @@ function SettingsWindow() {
           type="checkbox"
           checked={borderEnabled}
           onChange={(event) => updateBorder(event.target.checked)}
+        />
+      </label>
+      <label className="color-setting">
+        <span>공룡 색깔</span>
+        <input
+          type="color"
+          value={petColor}
+          onChange={(event) => updatePetColor(event.target.value)}
         />
       </label>
       <button
@@ -160,6 +260,9 @@ function Pet() {
   const [petScale, setPetScale] = useState(1);
   const [borderEnabled, setBorderEnabled] = useState(false);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [petColor, setPetColor] = useState<string>(DEFAULT_PET_COLOR);
+  const [recoloredSprite, setRecoloredSprite] = useState<string | undefined>(undefined);
+  const recolorRequestIdRef = useRef(0);
   const positionRef = useRef({ x: -1, y: -1 });
   const autoStateRef = useRef<AutoState>("idle");
   const isHoldingRef = useRef(false);
@@ -176,6 +279,24 @@ function Pet() {
   useEffect(() => {
     autoStateRef.current = autoState;
   }, [autoState]);
+
+  useEffect(() => {
+    writeStoredPetColor(petColor);
+  }, [petColor]);
+
+  useEffect(() => {
+    // 우클릭 감정 메뉴는 별도 창(별도 렌더러)이라 React state를 공유하지
+    // 않으므로, 같은 origin에서 공유되는 localStorage의 storage 이벤트로
+    // 색상 변경을 실시간으로 전달받는다.
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === PET_COLOR_STORAGE_KEY && event.newValue) {
+        setPetColor(event.newValue);
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   useEffect(() => {
     window.electronAPI.setPettingMode(autoState === "petting");
@@ -614,6 +735,18 @@ function Pet() {
       : autoState === "walk"
       ? `${import.meta.env.BASE_URL}pet/run${walkFrame + 1}.png`
       : `${import.meta.env.BASE_URL}pet/idle.png`;
+
+  useEffect(() => {
+    const requestId = ++recolorRequestIdRef.current;
+
+    recolorSprite(sprite, petColor).then((dataUrl) => {
+      // 색/프레임이 그 사이 또 바뀌어 더 최신 요청이 나갔다면 이 결과는 버린다
+      // (늦게 끝난 이전 요청이 최신 프레임을 덮어써서 깜빡이는 것을 방지).
+      if (recolorRequestIdRef.current !== requestId) return;
+      setRecoloredSprite(dataUrl);
+    });
+  }, [sprite, petColor]);
+
   return (
     // 💡 .pet div 자체에 grab 커서가 먹히도록 설정 (CSS에서 세팅)
     <div
@@ -623,7 +756,9 @@ function Pet() {
       onContextMenu={(e) => e.preventDefault()}
     >
       <img
-        src={sprite}
+        // 치환이 끝나기 전(또는 아직 한 번도 끝난 적 없을 때)에는 원본 sprite를
+        // 그대로 보여줘서 깜빡임 없이 이전 프레임 → 원본 → 치환본 순으로 자연스럽게 이어지게 한다.
+        src={recoloredSprite ?? sprite}
         alt="pet"
         draggable={false}
         onLoad={(event) => {
