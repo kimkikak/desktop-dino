@@ -1,5 +1,16 @@
 # DeskPet
 
+## 다운로드
+
+[Releases](https://github.com/kimkikak/desktop-dino/releases) 페이지에서 내 운영체제에 맞는 파일 **하나만** 받아서 설치하면 됩니다.
+
+| 파일 | 대상 |
+| --- | --- |
+| `DeskPet Setup 1.1.0.exe` | Windows |
+| `DeskPet-1.1.0-arm64.dmg` | Mac (Apple Silicon, M1/M2/M3) |
+| `DeskPet-1.1.0.AppImage` | Linux (배포판 상관없이 실행 가능) |
+| `trexpet-1.1.0.pacman` | Linux (Arch/Manjaro 계열 전용) |
+
 ## 주요 기능
 
 * **기본 행동**
