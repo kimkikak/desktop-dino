@@ -38,19 +38,19 @@ jobs:
           tag_name: ${{ github.ref_name }}
           fail_on_unmatched_files: false
           files: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.pacman
-            dist/*.blockmap
-            dist/latest*.yml
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.pacman
+            release/*.blockmap
+            release/latest*.yml
 
       - uses: actions/upload-artifact@v4
         with:
           name: trexpet-${{ matrix.os }}
           path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.pacman
-            dist/*.pkg.tar.zst
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.pacman
+            release/*.pkg.tar.zst
