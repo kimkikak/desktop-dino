@@ -189,6 +189,145 @@ body:has(.settings-window),
   background: #fbe4e0;
 }
 
+/* 옷장(인벤토리) 창 — 설정 창과 같은 톤.
+   창 크기(main.js의 WARDROBE_WINDOW_*)를 CSS에 고정하지 않고 실제 창 안쪽을 그대로 채운다.
+   (px로 못박으면 실제 창 안쪽이 그보다 좁을 때 오른쪽 닫기 버튼이 잘림) */
+.wardrobe-window {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  color: #28263a;
+  background: #fffaf2;
+  font-family: "Segoe UI", sans-serif;
+  user-select: none;
+}
+
+/* 프레임 없는 창이라 제목줄을 잡고 옮길 수 있게 한다 */
+.wardrobe-window .settings-titlebar {
+  margin-bottom: 8px;
+  -webkit-app-region: drag;
+}
+
+.wardrobe-window .settings-titlebar h1 {
+  font-size: 16px;
+}
+
+.wardrobe-window .settings-close {
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+
+.wardrobe-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eadfce;
+}
+
+.wardrobe-tab {
+  padding: 6px 10px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9a93a6;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wardrobe-tab:hover {
+  color: #28263a;
+}
+
+.wardrobe-tab[aria-selected="true"] {
+  border-bottom-color: #d4584e;
+  color: #d4584e;
+}
+
+/* 카드 2줄까지 보이고, 넘치면 목록 안에서만 스크롤 */
+.wardrobe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 86px;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.wardrobe-item {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: 2px solid #eadfce;
+  border-radius: 10px;
+  background: #fff;
+  color: #28263a;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+
+.wardrobe-item:hover {
+  border-color: #e0a39c;
+}
+
+.wardrobe-item:focus-visible,
+.wardrobe-tab:focus-visible,
+.wardrobe-window .settings-close:focus-visible {
+  outline: 2px solid #d4584e;
+  outline-offset: 2px;
+}
+
+.wardrobe-item[aria-pressed="true"] {
+  border-color: #d4584e;
+  background: #fbe4e0;
+}
+
+/* 착용 중 표시 */
+.wardrobe-item[aria-pressed="true"]::after {
+  content: "✓";
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  color: #d4584e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 썸네일 칸. 이미지는 도트가 고르게 보이도록 정수 배율 크기로 가운데에 놓는다 (ItemThumb) */
+.wardrobe-thumb {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+}
+
+.wardrobe-thumb img {
+  flex: none;
+}
+
+.wardrobe-name {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.wardrobe-empty {
+  margin: 28px 0 0;
+  color: #9a93a6;
+  font-size: 13px;
+  text-align: center;
+}
+
 .pet:active {
   cursor: grabbing;
 }

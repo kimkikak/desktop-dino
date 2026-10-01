@@ -8,13 +8,19 @@ const TAIL_OFFSET_Y = PET_SIZE * 0.05;
 const EMOTION_OVERLAY_SIZE = 400;
 const SETTINGS_WINDOW_WIDTH = 430;
 const SETTINGS_WINDOW_HEIGHT = 340;
+// 아이템 카드가 가로로 3개, 세로로 2줄 들어가는 크기 (index.css의 .wardrobe-window와 맞춤)
+const WARDROBE_WINDOW_WIDTH = 276;
+const WARDROBE_WINDOW_HEIGHT = 290;
 let petWindow;
 let emotionOverlayWindow;
 let settingsWindow;
+let wardrobeWindow;
 let emotionMenuCloseReason;
 let petScale = 1;
 let pettingMode = false;
 let petImageSize = { width: PET_SIZE, height: PET_SIZE };
+// 💡 머리 위 아이템(모자 등)이 들어갈 창 위쪽 여백 (스프라이트 원본 픽셀 단위, petScale 적용 전)
+let petTopInset = 0;
 
 // 💡 드래그가 시작될 때의 창 위치를 기억할 변수를 선언합니다.
 let startWindowX = 0;
@@ -32,10 +38,25 @@ let autoMoveX = null;
 // (모니터 간 DPI 재해석 등으로 OS가 순간적으로 다른 크기를 보고할 경우
 // 그 값이 다시 setBounds에 그대로 들어가 창이 커지는 것처럼 보일 수 있습니다.)
 function computeWindowSize() {
+  const scale = renderScale();
   return {
-    width: Math.max(1, Math.round(petImageSize.width * petScale) + FRAME_PADDING * 2),
-    height: Math.max(1, Math.round(petImageSize.height * petScale) + FRAME_PADDING * 2),
+    width: Math.max(1, Math.round(petImageSize.width * scale) + FRAME_PADDING * 2),
+    height: Math.max(1, Math.round((petImageSize.height + petTopInset) * scale) + FRAME_PADDING * 2),
   };
+}
+
+// 💡 실제로 공룡을 그리는 배율. 도트 1px이 물리 픽셀 정수 개로 딱 떨어지도록
+// petScale × 화면 배율(scaleFactor)을 가장 가까운 정수로 맞춥니다.
+// (정수가 아니면 도트마다 폭이 들쭉날쭉해짐) 렌더러의 snapScaleToDevicePixels와 같은 계산입니다.
+function renderScale() {
+  const scaleFactor = petWindow && !petWindow.isDestroyed()
+    ? screen.getDisplayMatching(petWindow.getBounds()).scaleFactor
+    : 1;
+  return Math.max(1, Math.round(petScale * scaleFactor)) / scaleFactor;
+}
+
+function scaledTopInset() {
+  return Math.round(petTopInset * renderScale());
 }
 
 function createWindow() {
@@ -97,13 +118,17 @@ function createWindow() {
     console.log("실제 RESIZE 발생함! 현재 크기:", petWindow.getSize());
   });
 
-  ipcMain.on("pet:resize", (_, requestedWidth, requestedHeight) => {
+  ipcMain.on("pet:resize", (_, requestedWidth, requestedHeight, requestedTopInset = 0) => {
     if (!petWindow || emotionOverlayWindow) return;
 
     petImageSize = {
       width: Math.max(1, Math.round(requestedWidth)),
       height: Math.max(1, Math.round(requestedHeight)),
     };
+    // 💡 위쪽 여백이 바뀐 만큼 창을 위/아래로 옮겨서, 공룡 자체의 화면 위치는 그대로 유지합니다.
+    const previousInset = scaledTopInset();
+    petTopInset = Math.max(0, Math.round(Number(requestedTopInset) || 0));
+    const insetDelta = scaledTopInset() - previousInset;
     console.log("[RESIZE]", {
       width: requestedWidth,
       height: requestedHeight,
@@ -113,7 +138,8 @@ function createWindow() {
     const { x, y, width: currentWidth, height: currentHeight } = petWindow.getBounds();
     const TOLERANCE = 2;
     if (
-      Math.abs(width - currentWidth) <= TOLERANCE
+      insetDelta === 0
+      && Math.abs(width - currentWidth) <= TOLERANCE
       && Math.abs(height - currentHeight) <= TOLERANCE
     ) {
       return;
@@ -124,7 +150,7 @@ function createWindow() {
       petWindow.setMinimumSize(1, 1);
       petWindow.setMaximumSize(width, height);
       petWindow.setMinimumSize(width, height);
-      petWindow.setBounds({ x, y, width, height });
+      petWindow.setBounds({ x, y: y - insetDelta, width, height });
     } finally {
       isProgrammaticResize = false;
     }
@@ -135,8 +161,9 @@ function createWindow() {
     if (!petWindow || emotionOverlayWindow) return;
     const { x, y } = petWindow.getBounds();
     const { width: currentWidth, height: currentHeight } = computeWindowSize();
-    const tailOffsetX = FRAME_PADDING + TAIL_OFFSET_X * petScale;
-    const tailOffsetY = FRAME_PADDING + TAIL_OFFSET_Y * petScale;
+    const tailOffsetX = FRAME_PADDING + TAIL_OFFSET_X * renderScale();
+    // 💡 창 위쪽 아이템 여백만큼 공룡이 아래로 밀려 있으므로 꼬리 y오프셋에도 더해줍니다.
+    const tailOffsetY = FRAME_PADDING + scaledTopInset() + TAIL_OFFSET_Y * renderScale();
     const tailOffsetFromWindow = direction === 1
       ? tailOffsetX
       : currentWidth - tailOffsetX;
@@ -349,6 +376,53 @@ function createWindow() {
     if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.close();
   });
 
+  // 💡 옷장(인벤토리) 창: 설정 창과 같은 방식으로 공룡 아래쪽에 띄웁니다.
+  // 착용 상태는 렌더러끼리 localStorage로 주고받으므로 메인 프로세스는 창만 관리합니다.
+  function openWardrobeWindow() {
+    if (wardrobeWindow && !wardrobeWindow.isDestroyed()) {
+      wardrobeWindow.focus();
+      return;
+    }
+
+    const { x, y, width, height } = petWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x, y });
+    const { x: minX, y: minY, width: workWidth, height: workHeight } = display.workArea;
+    const wardrobeX = Math.round(Math.min(
+      Math.max(x + width / 2 - WARDROBE_WINDOW_WIDTH / 2, minX),
+      minX + workWidth - WARDROBE_WINDOW_WIDTH,
+    ));
+    const wardrobeY = Math.round(Math.min(
+      Math.max(y + height + 12, minY),
+      minY + workHeight - WARDROBE_WINDOW_HEIGHT,
+    ));
+    const preloadPath = fileURLToPath(new URL("preload.js", import.meta.url));
+    wardrobeWindow = new BrowserWindow({
+      width: WARDROBE_WINDOW_WIDTH,
+      height: WARDROBE_WINDOW_HEIGHT,
+      x: wardrobeX,
+      y: wardrobeY,
+      frame: false,
+      resizable: false,
+      alwaysOnTop: true,
+      webPreferences: {
+        preload: preloadPath,
+        contextIsolation: true,
+      },
+    });
+
+    const wardrobeUrl = app.isPackaged
+      ? `file://${fileURLToPath(new URL("../dist/index.html", import.meta.url))}?window=wardrobe`
+      : "http://localhost:5173/?window=wardrobe";
+    wardrobeWindow.loadURL(wardrobeUrl);
+    wardrobeWindow.on("closed", () => {
+      wardrobeWindow = undefined;
+    });
+  }
+
+  ipcMain.on("pet:close-wardrobe", () => {
+    if (wardrobeWindow && !wardrobeWindow.isDestroyed()) wardrobeWindow.close();
+  });
+
   ipcMain.on("pet:set-scale", (_, requestedScale) => {
     if (!petWindow || !Number.isFinite(requestedScale)) return;
 
@@ -394,6 +468,11 @@ function createWindow() {
     if (emotion === "settings") {
       closeEmotionMenu();
       openSettingsWindow();
+      return;
+    }
+    if (emotion === "wardrobe") {
+      closeEmotionMenu();
+      openWardrobeWindow();
       return;
     }
     console.log(`[emotion] 선택됨: ${emotion}`);
